@@ -290,7 +290,6 @@ def main():
         st.session_state.mm_range_coords = None
         st.session_state.comparison_df = None
         st.session_state.thru_hike_days = None
-        st.session_state.reset_mm_range = True
         st.session_state.last_trail = selected_trail
 
     st.sidebar.markdown("---")
@@ -355,17 +354,13 @@ def main():
     # ─── Mile Marker Range ────────────────────────────────────────
     st.sidebar.markdown("### 📏 Mile Marker Range")
 
-    # Auto-reset MM range when trail changes
-    if st.session_state.get("reset_mm_range", False):
+    # Track trail+direction to detect changes (750 is valid on both AZT AND PCT!)
+    current_mm_key = f"{selected_trail}_{direction}" if not use_upload else "upload"
+    if st.session_state.get("_mm_source") != current_mm_key:
         for k in ["start_mm", "end_mm"]:
             if k in st.session_state:
                 del st.session_state[k]
-        st.session_state.reset_mm_range = False
-        st.rerun()
-
-    # Ensure End MM stays at max if user hasn't explicitly changed it
-    if "end_mm" in st.session_state and st.session_state.end_mm not in mm_options:
-        del st.session_state["end_mm"]
+        st.session_state._mm_source = current_mm_key
         st.rerun()
 
     start_mm = st.sidebar.selectbox("Start MM", mm_options, index=0, key="start_mm")
