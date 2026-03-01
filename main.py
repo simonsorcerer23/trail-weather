@@ -125,8 +125,8 @@ def cached_danger_alerts(_df_hash, df, temp_symbol):
 def init_session_state():
     """Initialize all session state variables."""
     defaults = {
-        "start_date": Date.today() - timedelta(days=30),
-        "end_date": Date.today() - timedelta(days=1),
+        "start_date": Date.today(),
+        "end_date": Date.today() + timedelta(days=30),
         "last_start_date": None,
         "mm_weather_df": None,
         "mm_range_coords": None,
@@ -357,20 +357,19 @@ def main():
 
     # Auto-reset MM range when trail changes
     if st.session_state.get("reset_mm_range", False):
-        # Clear stale selectbox keys so they default to first/last
-        if "start_mm" in st.session_state:
-            del st.session_state["start_mm"]
-        if "end_mm" in st.session_state:
-            del st.session_state["end_mm"]
+        for k in ["start_mm", "end_mm"]:
+            if k in st.session_state:
+                del st.session_state[k]
         st.session_state.reset_mm_range = False
+        st.rerun()
+
+    # Ensure End MM stays at max if user hasn't explicitly changed it
+    if "end_mm" in st.session_state and st.session_state.end_mm not in mm_options:
+        del st.session_state["end_mm"]
+        st.rerun()
 
     start_mm = st.sidebar.selectbox("Start MM", mm_options, index=0, key="start_mm")
     end_mm = st.sidebar.selectbox("End MM", mm_options, index=len(mm_options) - 1, key="end_mm")
-
-    # Force End MM to max if it's not a valid option for this trail
-    if end_mm not in mm_options:
-        end_mm = mm_options[-1]
-        st.session_state.end_mm = end_mm
     if start_mm > end_mm:
         start_mm, end_mm = end_mm, start_mm
 
@@ -404,10 +403,11 @@ def main():
         (mm_df["mile_marker"] >= start_mm) & (mm_df["mile_marker"] <= end_mm)
     ].reset_index(drop=True)
 
-    hike_start = st.session_state.start_date
     hike_duration_days = None
 
     if len(thru_mm_df) >= 2:
+        # Always plan from today
+        hike_start = Date.today()
         thru_days = plan_thru_hike(
             thru_mm_df, seg_stats, hike_start,
             thru_pace, thru_adjust_elev,
@@ -418,10 +418,10 @@ def main():
         if summary:
             hike_duration_days = summary["total_days"]
             end_date_hike = hike_start + timedelta(days=hike_duration_days - 1)
-            target_end = min(end_date_hike, Date.today() - timedelta(days=1))
 
-            # Auto-set end date to match hike duration
-            st.session_state.end_date = target_end
+            # Auto-set date range to match hike
+            st.session_state.start_date = hike_start
+            st.session_state.end_date = end_date_hike
 
             st.sidebar.markdown(
                 f"📅 **{summary['total_days']} Tage** "
@@ -440,11 +440,9 @@ def main():
     st.sidebar.markdown("### 📅 Date Range")
     start_date = st.sidebar.date_input(
         "Start Date", key="start_date",
-        max_value=Date.today() - timedelta(days=1),
     )
     end_date = st.sidebar.date_input(
         "End Date", key="end_date",
-        max_value=Date.today(),
     )
     if hike_duration_days:
         st.sidebar.caption(f"📅 Zeitraum: **{(end_date - start_date).days + 1}** Tage "
